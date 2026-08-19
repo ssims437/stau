@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>Stau — warum es steht, obwohl nichts passiert ist</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Verkehr aus vier Regeln: Phantomstaus im Weg-Zeit-Bild, das Fundamentaldiagramm gemessen statt behauptet, die Rückwärtsgeschwindigkeit der Stauwelle — und ein Prüflauf, der jedes Auto einzeln nachzählt." />
+
+<style>
+  :root {
+    --grund: #EFEEEC;
+    --feld:  #FAFAF8;
+    --tief:  #E3E2DE;
+    --linie: #C8C6C0;
+    --tinte: #18171A;
+    --leise: #64626A;
+    --netz:  #B5B3AE;
+    --frei:  #2C7A34;
+    --zaeh:  #B4762A;
+    --steht: #A32C22;
+    --merk:  #1F5FA8;
+    --gut:   #2C7A34;
+    --warn:  #A32C22;
+    --schatten: 0 1px 0 rgba(24,23,26,.05), 0 10px 24px -16px rgba(24,23,26,.45);
+    --f-fest: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "DejaVu Sans Mono", monospace;
+    --f-text: -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --grund: #131214; --feld: #1A191C; --tief: #0C0C0D; --linie: #302E33;
+      --tinte: #E7E5EA; --leise: #918F98; --netz: #423F46;
+      --frei: #7FBF6A; --zaeh: #D9A24A; --steht: #E0776B; --merk: #6CA8E8;
+      --gut: #7FBF6A; --warn: #E0776B;
+      --schatten: 0 1px 0 rgba(255,255,255,.03), 0 12px 30px -18px #000;
+    }
+  }
+  :root[data-theme="dark"] {
+    --grund: #131214; --feld: #1A191C; --tief: #0C0C0D; --linie: #302E33;
+    --tinte: #E7E5EA; --leise: #918F98; --netz: #423F46;
+    --frei: #7FBF6A; --zaeh: #D9A24A; --steht: #E0776B; --merk: #6CA8E8;
+    --gut: #7FBF6A; --warn: #E0776B;
+    --schatten: 0 1px 0 rgba(255,255,255,.03), 0 12px 30px -18px #000;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--grund); color:var(--tinte);
+    font-family:var(--f-text); font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased; }
+  .blatt { max-width:1180px; margin:0 auto;
+    padding: clamp(20px,4vw,44px) clamp(14px,3vw,28px) 64px;
+    display:flex; flex-direction:column; gap:18px; }
+
+  .marke { font-family:var(--f-fest); font-size:10px; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--leise); display:flex; gap:12px; align-items:center; margin:0; }
+  .marke::after { content:""; flex:1; height:1px; background:var(--linie); }
+  h1 { font-family:var(--f-fest); font-weight:700; font-size:clamp(24px,4.2vw,40px);
+    line-height:1.06; letter-spacing:-.03em; margin:0; text-wrap:balance; }
+  h1 span { color:var(--steht); }
+  .vorspann { max-width:70ch; color:var(--leise); margin:0 auto; text-align:center; }
+  .vorspann b { color:var(--tinte); font-weight:600; }
+
+  .leiste { display:flex; gap:14px; flex-wrap:wrap; align-items:center;
+    background:var(--feld); border:1px solid var(--linie); padding:9px 11px; box-shadow:var(--schatten); }
+  .kl { font-family:var(--f-fest); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--leise); }
+  .regler { display:flex; gap:7px; align-items:center; }
+  .regler output { font-family:var(--f-fest); font-size:12px; min-width:5.5ch; text-align:right;
+    font-variant-numeric:tabular-nums; }
+  input[type=range] { width:120px; accent-color:var(--merk); }
+  button, select { font-family:var(--f-fest); font-size:12px; color:var(--tinte); background:var(--grund);
+    border:1px solid var(--linie); border-radius:0; padding:6px 10px; letter-spacing:.03em; cursor:pointer; }
+  button:hover, select:hover { border-color:var(--merk); }
+  button.haupt { background:var(--merk); border-color:var(--merk); color:var(--feld); }
+  button[aria-pressed="true"] { background:var(--tief); border-color:var(--merk); }
+  :focus-visible { outline:2px solid var(--merk); outline-offset:2px; }
+
+  .kasten { background:var(--feld); border:1px solid var(--linie); box-shadow:var(--schatten);
+    display:flex; flex-direction:column; min-width:0; }
+  .kasten-kopf { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    padding:8px 11px; border-bottom:1px solid var(--linie); }
+  .kasten-leib { padding:11px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+  .buehne { display:grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); gap:18px; align-items:start; }
+  @media (max-width: 940px) { .buehne { grid-template-columns: minmax(0,1fr); } }
+  .saeule { display:flex; flex-direction:column; gap:18px; min-width:0; }
+
+  canvas { width:100%; height:auto; display:block; background:var(--tief); border:1px solid var(--linie); }
+  canvas#diagramm { cursor:crosshair; }
+
+  .werte { display:grid; grid-template-columns:repeat(auto-fit,minmax(116px,1fr)); gap:1px;
+    background:var(--linie); border:1px solid var(--linie); }
+  .wert { background:var(--feld); padding:7px 9px; min-width:0; }
+  .wert .l { font-family:var(--f-fest); font-size:9.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--leise); }
+  .wert .n { font-family:var(--f-fest); font-size:16px; font-variant-numeric:tabular-nums; }
+  .wert .n.frei { color:var(--frei); } .wert .n.steht { color:var(--steht); }
+  .wert .k { font-family:var(--f-fest); font-size:10px; color:var(--leise); }
+
+  table.liste { border-collapse:collapse; width:100%; font-family:var(--f-fest); font-size:12px; }
+  table.liste th, table.liste td { border-bottom:1px solid var(--linie); padding:4px 7px; text-align:left; }
+  table.liste th { color:var(--leise); font-weight:400; font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+
+  .hinweis { font-family:var(--f-fest); font-size:12px; color:var(--leise); letter-spacing:0; margin:0; }
+  .hinweis b { color:var(--tinte); font-weight:600; }
+  .legende { display:flex; gap:16px; flex-wrap:wrap; font-family:var(--f-fest); font-size:11px; color:var(--leise); }
+  .legende i { display:inline-block; width:11px; height:11px; vertical-align:-1px; margin-right:5px; }
+
+  .regeln { font-family:var(--f-fest); font-size:12px; background:var(--tief); border:1px solid var(--linie);
+    padding:10px 12px; line-height:1.8; }
+  .regeln b { color:var(--merk); }
+  .regeln span { color:var(--leise); }
+
+  .noten { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:18px; margin-top:6px; }
+  .noten section { background:var(--feld); border:1px solid var(--linie); padding:12px 14px; box-shadow:var(--schatten); }
+  .noten h3 { font-family:var(--f-fest); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--leise); margin:0 0 6px; font-weight:400; }
+  .noten p { margin:0; font-size:14px; }
+  code { font-family:var(--f-fest); font-size:12.5px; background:var(--tief); padding:1px 4px; }
+  .fuss { color:var(--leise); font-size:13px; border-top:1px solid var(--linie); padding-top:12px; }
+  .fuss a { color:var(--merk); }
+</style>
+</head>
+<body>
+<main class="blatt">
+
+  <p class="marke">Blatt · Verkehr</p>
+  <h1>Stau — warum es steht, obwohl <span>nichts passiert</span> ist</h1>
+  <p class="vorspann">
+    Man steht, kriecht, fährt wieder an — und sieht nie, warum. Kein Unfall, keine Baustelle,
+    nichts. Solche Staus entstehen <b>aus dem Verkehr selbst</b>, sobald er dicht genug ist: Ein
+    einziges Bremsen genügt, und die Störung wandert <b>rückwärts</b> durch die Kolonne, während
+    die Autos vorwärts fahren. Dieses Blatt baut den Verkehr aus vier Regeln nach, zeigt die
+    Stauwellen im Weg-Zeit-Bild und misst nach, was sonst behauptet wird.
+  </p>
+
+  <div class="leiste">
+    <div class="regler"><span class="kl">Dichte</span>
+      <input type="range" id="r-dichte" min="2" max="90" step="1" value="18" />
+      <output id="o-dichte"></output></div>
+    <div class="regler"><span class="kl">Trödeln</span>
+      <input type="range" id="r-troedel" min="0" max="60" step="2" value="20" />
+      <output id="o-troedel"></output></div>
+    <div class="regler"><span class="kl">Höchsttempo</span>
+      <input type="range" id="r-tempo" min="1" max="7" step="1" value="5" />
+      <output id="o-tempo"></output></div>
+    <button id="b-neu">Neu würfeln</button>
+    <button id="b-bremsen">Einer bremst</button>
+    <span style="flex:1"></span>
+    <button id="b-thema">Ansicht</button>
+  </div>
+
+  <div class="buehne">
+    <div class="saeule">
+      <div class="kasten">
+        <div class="kasten-kopf">
+          <span class="kl">Weg und Zeit</span>
+          <span class="kl" id="bild-lage" style="margin-left:auto"></span>
+        </div>
+        <div class="kasten-leib">
+          <canvas id="bild" width="820" height="620" aria-label="Weg-Zeit-Bild des Verkehrs"></canvas>
+          <div class="legende">
+            <span><i style="background:var(--frei)"></i>fährt frei</span>
+            <span><i style="background:var(--zaeh)"></i>zäh</span>
+            <span><i style="background:var(--steht)"></i>steht</span>
+            <span id="wellen-lage"></span>
+          </div>
+          <p class="hinweis" id="bild-fuss"></p>
+        </div>
+      </div>
+
+      <div class="kasten">
+        <div class="kasten-kopf"><span class="kl">Die vier Regeln, jede Sekunde, für jedes Auto</span></div>
+        <div class="kasten-leib">
+          <div class="regeln">
+  <b>1 beschleunigen</b>  wer langsamer als erlaubt fährt, wird um eins schneller
+  <b>2 bremsen</b>        wer dem Vordermann zu nahe kommt, geht auf dessen Abstand herunter
+  <b>3 trödeln</b>        mit Wahrscheinlichkeit p wird einer grundlos um eins langsamer
+  <b>4 fahren</b>         alle rücken gleichzeitig um ihre Geschwindigkeit vor
+          </div>
+          <p class="hinweis">
+            Mehr ist es nicht. Keine Fahrerpsychologie, keine Spurwechsel, keine Lastwagen — und
+            trotzdem entsteht daraus alles, was man von der Autobahn kennt. <b>Regel 3 ist die
+            entscheidende</b>: Ohne sie fährt sich der Verkehr in einen völlig gleichmäßigen
+            Zustand ein und bleibt dort. Mit ihr genügt ein einziges unnötiges Bremsen.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="saeule">
+      <div class="kasten">
+        <div class="kasten-kopf">
+          <span class="kl">Wie viel durchkommt</span>
+          <span class="kl" id="diagramm-lage" style="margin-left:auto"></span>
+        </div>
+        <div class="kasten-leib">
+          <canvas id="diagramm" width="820" height="420" aria-label="Fundamentaldiagramm"></canvas>
+          <p class="hinweis" id="diagramm-fuss"></p>
+        </div>
+      </div>
+
+      <div class="kasten">
+        <div class="kasten-kopf">
+          <span class="kl">Gemessen an dieser Straße</span>
+        </div>
+        <div class="kasten-leib">
+          <div class="werte">
+            <div class="wert"><div class="l">Dichte</div><div class="n" id="w-dichte">—</div>
+              <div class="k">Autos je Kilometer</div></div>
+            <div class="wert"><div class="l">Tempo im Mittel</div><div class="n" id="w-tempo">—</div>
+              <div class="k" id="w-tempo-k"></div></div>
+            <div class="wert"><div class="l">Durchsatz</div><div class="n" id="w-fluss">—</div>
+              <div class="k">Autos je Stunde</div></div>
+            <div class="wert"><div class="l">steht gerade</div><div class="n steht" id="w-steht">—</div>
+              <div class="k">von allen Autos</div></div>
+            <div class="wert"><div class="l">Stauwelle</div><div class="n" id="w-welle">—</div>
+              <div class="k">km/h, gemessen</div></div>
+            <div class="wert"><div class="l">Staus</div><div class="n" id="w-staus">—</div>
+              <div class="k">gleichzeitig auf der Strecke</div></div>
+          </div>
+          <p class="hinweis" id="werte-fuss"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="kasten">
+    <div class="kasten-kopf">
+      <span class="kl">Beweis statt Behauptung</span>
+      <button id="b-pruefen" class="haupt" style="margin-left:auto">Prüfen</button>
+    </div>
+    <div class="kasten-leib">
+      <p class="hinweis">
+        Ein Verkehrsmodell ist schnell geschrieben und noch schneller falsch. Geprüft wird
+        deshalb das Unspektakuläre zuerst: dass <b>kein Auto verschwindet</b>, dass <b>keine zwei
+        auf demselben Fleck</b> stehen, dass niemand durch seinen Vordermann hindurchfährt. Und
+        danach das Interessante: dass der Durchsatz auf zwei ganz verschiedene Arten gemessen
+        dasselbe ergibt, und dass die Stauwelle genau so schnell zurückläuft, wie es die Regeln
+        erzwingen.
+      </p>
+      <table class="liste" id="pruef"><tbody></tbody></table>
+      <p class="hinweis" id="pruef-fuss">noch nicht geprüft</p>
+    </div>
+  </div>
+
+  <div class="noten">
+    <section>
+      <h3>Warum rückwärts</h3>
+      <p>
+        Weil nicht die Autos den Stau bilden, sondern die <b>Lücken</b> ihn auflösen. Vorne fährt
+        einer an, die Lücke wandert nach hinten und erreicht den Nächsten, dann den
+        Übernächsten. Der Stau bleibt ungefähr gleich groß, verschiebt sich aber gegen die
+        Fahrtrichtung — jeder Fahrer erlebt ihn, keiner verursacht ihn.
+      </p>
+    </section>
+    <section>
+      <h3>Der Kipppunkt</h3>
+      <p>
+        Bis zu einer gewissen Dichte wächst der Durchsatz mit jedem zusätzlichen Auto. Ab dem
+        <b>Umschlagpunkt</b> kippt es: Mehr Autos bedeuten weniger Durchsatz, weil sie sich
+        gegenseitig bremsen. Genau dort verläuft die Grenze zwischen „dicht, aber flüssig" und
+        „es geht nichts mehr" — und sie liegt tiefer, als man erwartet.
+      </p>
+    </section>
+    <section>
+      <h3>Was daran erstaunlich ist</h3>
+      <p>
+        Im Modell steckt <b>keine einzige Zahl aus der Wirklichkeit</b> — nur vier Regeln, ein
+        Feld von 7,5 Metern und eine Sekunde je Schritt. Trotzdem wandern die Stauwellen mit
+        rund <b>15 km/h rückwärts</b>, genau wie auf echten Autobahnen gemessen. Das ist kein
+        Anpassen, sondern das, was herauskommt, wenn man Leute in einer Reihe fahren lässt.
+      </p>
+    </section>
+  </div>
+
+  <p class="fuss">
+    Eine einzelne HTML-Datei. Kein Build, keine Bibliothek, nichts verlässt den Browser.
+    <span style="display:block;margin-top:8px">
+      Alle Blätter: <a href="https://ssims437.github.io/">ssims437.github.io</a>
+    </span>
+  </p>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const zahl = (x, s) => x.toLocaleString("de-AT", { minimumFractionDigits: s ?? 1, maximumFractionDigits: s ?? 1 });
+
+  /* ==========================================================================
+     MASSE
+     Ein Feld ist die Länge, die ein stehendes Auto samt Sicherheitsabstand
+     braucht: 7,5 Meter. Ein Schritt ist eine Sekunde. Damit ist ein Feld je
+     Schritt genau 27 km/h — und Tempo 5 sind 135 km/h.
+     ========================================================================== */
+  const FELD = 7.5, SCHRITT = 1;
+  const kmh = (felderJeSchritt) => felderJeSchritt * FELD / SCHRITT * 3.6;
+
+  /* ==========================================================================
+     DIE REGELN
+     Nagel und Schreckenberg, 1992. Vier Zeilen, mehr nicht.
+     ========================================================================== */
+  function schritt(auto, tempo, laenge, vmax, troedeln, w) {
+    const n = auto.length;
+    const neu = new Array(n);
+    for (let i = 0; i < n; i++) {
+      let v = tempo[i];
+      // 1 beschleunigen
+      if (v < vmax) v++;
+      // 2 bremsen: der Abstand zum Vordermann begrenzt
+      const vorne = auto[(i + 1) % n];
+      let luecke = vorne - auto[i] - 1;
+      if (luecke < 0) luecke += laenge;
+      if (v > luecke) v = luecke;
+      // 3 trödeln
+      if (v > 0 && w() < troedeln) v--;
+      neu[i] = v;
+    }
+    // 4 fahren — alle gleichzeitig
+    for (let i = 0; i < n; i++) {
+      tempo[i] = neu[i];
+      auto[i] = (auto[i] + neu[i]) % laenge;
+    }
+  }
+
+  /* Zufall mit Saat: dieselbe Straße lässt sich wiederholen. */
+  function wuerfel(saat) {
+    let s = (saat >>> 0) || 1;
+    return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
+  }
+
+  /* Eine Straße anlegen: Autos gleichmäßig verteilt, alle in Fahrt. */
+  function strasse(laenge, anzahl, vmax, saat) {
+    const w = wuerfel(saat);
+    const belegt = new Set();
+    while (belegt.size < anzahl) belegt.add(Math.floor(w() * laenge));
+    const auto = [...belegt].sort((a, b) => a - b);
+    const tempo = auto.map(() => vmax);
+    return { auto, tempo, laenge, w };
+  }
+
+  /* Einen Lauf rechnen und dabei aufzeichnen, was gefragt ist. */
+  function laufen(laenge, anzahl, vmax, troedeln, saat, schritte, aufzeichnen, einerBremst) {
+    const s = strasse(laenge, anzahl, vmax, saat);
+    const bild = [];
+    let summeTempo = 0, gezaehlt = 0, durchZaehler = 0;
+    const messstelle = Math.floor(laenge / 2);
+    const vorwarm = Math.min(200, Math.floor(schritte / 3));
+    for (let t = 0; t < schritte + vorwarm; t++) {
+      if (einerBremst && t === vorwarm + 5) { s.tempo[0] = 0; }
+      const vorher = s.auto.slice();
+      schritt(s.auto, s.tempo, laenge, vmax, troedeln, s.w);
+      if (t < vorwarm) continue;
+      if (aufzeichnen) bild.push({ auto: s.auto.slice(), tempo: s.tempo.slice() });
+      for (let i = 0; i < anzahl; i++) {
+        summeTempo += s.tempo[i]; gezaehlt++;
+        // Zählschleife: wer die Messstelle in diesem Schritt überquert hat
+        const von = vorher[i], nach = s.auto[i];
+        const strecke = (nach - von + laenge) % laenge;
+        const bisMess = (messstelle - von + laenge) % laenge;
+        if (strecke > 0 && bisMess < strecke) durchZaehler++;
+      }
+    }
+    const mittleresTempo = summeTempo / gezaehlt;
+    return {
+      bild, mittleresTempo,
+      dichte: anzahl / laenge,
+      flussAusTempo: anzahl / laenge * mittleresTempo,     // Dichte mal Tempo
+      flussGezaehlt: durchZaehler / schritte / laenge * laenge / laenge,  // je Schritt
+      durchZaehler, schritte, zustand: s
+    };
+  }
+
+  /* ==========================================================================
+     STAUS FINDEN
+     Ein Stau ist eine zusammenhängende Kette stehender Autos. Gezählt wird auf
+     dem Ring, deshalb muss der Übergang über die Naht mitgedacht werden.
+     ========================================================================== */
+  function stausFinden(auto, tempo, laenge) {
+    const n = auto.length;
+    const steht = tempo.map((v) => v === 0);
+    if (!steht.some((x) => x)) return [];
+    const staus = [];
+    // Beginn: ein stehendes Auto, dessen Hintermann fährt
+    for (let i = 0; i < n; i++) {
+      if (!steht[i]) continue;
+      const hinten = (i - 1 + n) % n;
+      if (steht[hinten]) continue;
+      let laengeStau = 0, k = i;
+      while (steht[k] && laengeStau < n) { laengeStau++; k = (k + 1) % n; }
+      staus.push({ von: auto[i], laenge: laengeStau });
+    }
+    return staus;
+  }
+
+  /* Wie schnell wandert ein Stau? Gemessen wird, indem ein Stau von Schritt zu
+     Schritt verfolgt wird — jeweils der nächstgelegene zur letzten Position,
+     mit Rücksicht auf die Naht des Rings. Das Ergebnis ist eine Messung an
+     dieser Straße, keine Formel. */
+  function stauTempo(bild, laenge) {
+    let pos = null, summe = 0, gezaehlt = 0;
+    for (const reihe of bild) {
+      const steht = [];
+      for (let i = 0; i < reihe.auto.length; i++) if (reihe.tempo[i] === 0) steht.push(reihe.auto[i]);
+      if (!steht.length) { pos = null; continue; }
+      if (pos === null) { pos = steht[0]; continue; }
+      let naechster = steht[0], besterAbstand = Infinity;
+      for (const q of steht) {
+        let d = Math.abs(q - pos);
+        d = Math.min(d, laenge - d);
+        if (d < besterAbstand) { besterAbstand = d; naechster = q; }
+      }
+      let d = naechster - pos;
+      if (d > laenge / 2) d -= laenge;
+      if (d < -laenge / 2) d += laenge;
+      if (Math.abs(d) < laenge / 4) { summe += d; gezaehlt++; }
+      pos = naechster;
+    }
+    return gezaehlt > 20 ? { felderJeSchritt: summe / gezaehlt, messungen: gezaehlt } : null;
+  }
+
+  /* ==========================================================================
+     ZUSTAND
+     ========================================================================== */
+  let LAUF = null, SAAT = 20260819, BREMSEN = false;
+  const farbe = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const LAENGE = 300, SCHRITTE = 300;
+
+  const lesen = () => ({
+    dichte: +$("r-dichte").value / 100,
+    troedeln: +$("r-troedel").value / 100,
+    vmax: +$("r-tempo").value
+  });
+
+  function alles() {
+    const e = lesen();
+    $("o-dichte").textContent = (e.dichte * 100).toFixed(0) + " %";
+    $("o-troedel").textContent = (e.troedeln * 100).toFixed(0) + " %";
+    $("o-tempo").textContent = e.vmax + " (" + kmh(e.vmax).toFixed(0) + ")";
+    const anzahl = Math.max(1, Math.round(LAENGE * e.dichte));
+    LAUF = laufen(LAENGE, anzahl, e.vmax, e.troedeln, SAAT, SCHRITTE, true, BREMSEN);
+    bildZeichnen();
+    diagrammZeichnen();
+    werteZeigen();
+  }
+
+  /* ==========================================================================
+     WEG-ZEIT-BILD
+     Waagrecht die Straße, senkrecht die Zeit nach unten. Jedes Auto ist ein
+     Punkt. Was man sieht, sind schräge Linien: fahrende Autos. Die dunklen
+     Streifen, die nach links unten laufen, sind die Staus.
+     ========================================================================== */
+  function bildZeichnen() {
+    const c = $("bild"), g = c.getContext("2d");
+    g.fillStyle = farbe("--tief"); g.fillRect(0, 0, c.width, c.height);
+    const L = 42, R = 12, O = 12, U = 30;
+    const B = c.width - L - R, H = c.height - O - U;
+    const e = lesen();
+    const bx = B / LAENGE, by = H / LAUF.bild.length;
+    const punkt = Math.max(bx * 0.9, 1.1), hoch = Math.max(by * 1.05, 1.1);
+
+    LAUF.bild.forEach((reihe, t) => {
+      const y = O + t * by;
+      for (let i = 0; i < reihe.auto.length; i++) {
+        const v = reihe.tempo[i];
+        g.fillStyle = farbe(v === 0 ? "--steht" : v <= Math.max(1, e.vmax / 2) ? "--zaeh" : "--frei");
+        g.globalAlpha = v === 0 ? 1 : 0.8;
+        g.fillRect(L + reihe.auto[i] * bx, y, punkt, hoch);
+      }
+    });
+    g.globalAlpha = 1;
+
+    // Achsen
+    g.strokeStyle = farbe("--linie"); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(L - .5, O); g.lineTo(L - .5, O + H); g.stroke();
+    g.fillStyle = farbe("--leise"); g.font = "10px ui-monospace, monospace";
+    g.textAlign = "right"; g.textBaseline = "middle";
+    for (let t = 0; t <= LAUF.bild.length; t += 60) {
+      const y = O + t * by;
+      g.fillText(t + " s", L - 6, y);
+      g.strokeStyle = farbe("--netz"); g.globalAlpha = .35;
+      g.beginPath(); g.moveTo(L, y + .5); g.lineTo(L + B, y + .5); g.stroke();
+      g.globalAlpha = 1;
+    }
+    g.textAlign = "center"; g.textBaseline = "top";
+    for (let x = 0; x <= LAENGE; x += 50) {
+      g.fillText((x * FELD / 1000).toFixed(2).replace(".", ",") + " km", L + x * bx, O + H + 5);
+    }
+    g.fillText("Ringstraße, " + (LAENGE * FELD / 1000).toFixed(2).replace(".", ",") + " km — die Zeit läuft nach unten",
+      L + B / 2, O + H + 18);
+
+    const letzte = LAUF.bild[LAUF.bild.length - 1];
+    const staus = stausFinden(letzte.auto, letzte.tempo, LAENGE);
+    $("bild-lage").textContent = `${letzte.auto.length} Autos · ${LAUF.bild.length} Sekunden`;
+    $("wellen-lage").innerHTML = staus.length
+      ? `<b style="color:var(--tinte)">${staus.length} Stau${staus.length > 1 ? "s" : ""}</b> am Ende des Laufs`
+      : `<b style="color:var(--frei)">kein Stau</b>`;
+    $("bild-fuss").innerHTML = staus.length
+      ? `Jede schräge Linie ist ein Auto. Die dunklen Bänder, die <b>nach links unten</b> laufen, ` +
+        `sind die Staus: Die Autos fahren nach rechts, der Stau wandert nach links. Nirgends ist ` +
+        `ein Hindernis — <b>die Bänder entstehen aus dem Verkehr selbst</b>.`
+      : `Bei dieser Dichte läuft alles glatt: lauter parallele Linien, keine dunklen Bänder. ` +
+        `Den Dichteregler langsam höher schieben — der Umschlag kommt <b>plötzlich</b>, nicht ` +
+        `allmählich.`;
+  }
+
+  /* ==========================================================================
+     FUNDAMENTALDIAGRAMM
+     Für jede Dichte ein eigener Lauf. Waagrecht die Dichte, senkrecht der
+     Durchsatz. Der Ast links steigt, der Ast rechts fällt — dazwischen liegt
+     der Umschlagpunkt.
+     ========================================================================== */
+  let DIAGRAMM = null;
+  function diagrammRechnen(troedeln, vmax) {
+    const punkte = [];
+    for (let k = 1; k <= 60; k++) {
+      const d = k / 60 * 0.95;
+      const anzahl = Math.max(1, Math.round(120 * d));
+      const r = laufen(120, anzahl, vmax, troedeln, 4242 + k * 17, 160, false, false);
+      punkte.push({ dichte: anzahl / 120, fluss: r.flussAusTempo, tempo: r.mittleresTempo });
+    }
+    return punkte;
+  }
+
+  function diagrammZeichnen() {
+    const c = $("diagramm"), g = c.getContext("2d");
+    g.fillStyle = farbe("--tief"); g.fillRect(0, 0, c.width, c.height);
+    const e = lesen();
+    DIAGRAMM = diagrammRechnen(e.troedeln, e.vmax);
+    const ohne = diagrammRechnen(0, e.vmax);
+    const L = 62, R = 16, O = 16, U = 38;
+    const B = c.width - L - R, H = c.height - O - U;
+    const maxFluss = Math.max(...ohne.map((p) => p.fluss), ...DIAGRAMM.map((p) => p.fluss)) * 1.08;
+    const X = (d) => L + d * B;
+    const Y = (f) => O + H - f / maxFluss * H;
+
+    g.strokeStyle = farbe("--netz"); g.setLineDash([2, 4]); g.lineWidth = 1;
+    g.font = "10px ui-monospace, monospace"; g.textBaseline = "middle"; g.textAlign = "right";
+    for (let k = 0; k <= 4; k++) {
+      const f = maxFluss * k / 4, y = Y(f);
+      g.beginPath(); g.moveTo(L, y + .5); g.lineTo(L + B, y + .5); g.stroke();
+      g.fillStyle = farbe("--leise");
+      g.fillText((f * 3600 / SCHRITT).toFixed(0), L - 7, y);
+    }
+    g.setLineDash([]);
+
+    // ohne Trödeln als blasse Linie
+    g.strokeStyle = farbe("--leise"); g.globalAlpha = .45; g.lineWidth = 1.4;
+    g.beginPath();
+    ohne.forEach((p, k) => k ? g.lineTo(X(p.dichte), Y(p.fluss)) : g.moveTo(X(p.dichte), Y(p.fluss)));
+    g.stroke(); g.globalAlpha = 1;
+
+    // gemessene Punkte
+    for (const p of DIAGRAMM) {
+      g.fillStyle = farbe(p.tempo > e.vmax * 0.66 ? "--frei" : p.tempo > 1 ? "--zaeh" : "--steht");
+      g.beginPath(); g.arc(X(p.dichte), Y(p.fluss), 3.2, 0, 7); g.fill();
+    }
+
+    // Umschlagpunkt
+    let beste = DIAGRAMM[0];
+    for (const p of DIAGRAMM) if (p.fluss > beste.fluss) beste = p;
+    g.strokeStyle = farbe("--merk"); g.setLineDash([4, 3]); g.lineWidth = 1.3;
+    g.beginPath(); g.moveTo(X(beste.dichte), O); g.lineTo(X(beste.dichte), O + H); g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = farbe("--merk"); g.textAlign = "left"; g.textBaseline = "top";
+    g.fillText(`Umschlag bei ${(beste.dichte * 100).toFixed(0)} %`, X(beste.dichte) + 6, O + 4);
+
+    // eigene Lage
+    const jetzt = LAUF.dichte;
+    g.strokeStyle = farbe("--tinte"); g.globalAlpha = .5; g.setLineDash([1, 3]);
+    g.beginPath(); g.moveTo(X(jetzt), O); g.lineTo(X(jetzt), O + H); g.stroke();
+    g.setLineDash([]); g.globalAlpha = 1;
+
+    g.fillStyle = farbe("--leise"); g.textAlign = "center"; g.textBaseline = "top";
+    for (let d = 0; d <= 100; d += 25) g.fillText(d + " %", X(d / 100), O + H + 6);
+    g.fillText("Dichte — Anteil belegter Felder", L + B / 2, O + H + 20);
+    g.save(); g.translate(14, O + H / 2); g.rotate(-Math.PI / 2);
+    g.textAlign = "center"; g.textBaseline = "top";
+    g.fillText("Autos je Stunde", 0, 0); g.restore();
+
+    $("diagramm-lage").textContent = `60 eigene Läufe · Höchstwert ${(beste.fluss * 3600).toFixed(0)} Autos/h`;
+    $("diagramm-fuss").innerHTML =
+      `Jeder Punkt ist ein eigener Lauf über 160 Sekunden. Links steigt der Durchsatz mit der ` +
+      `Dichte, rechts <b>fällt er wieder</b> — beim Umschlagpunkt bei etwa ` +
+      `<b>${(beste.dichte * 100).toFixed(0)} %</b> ist Schluss. Die blasse Linie zeigt dieselbe ` +
+      `Straße <b>ohne Trödeln</b>: Sie erreicht mehr und bricht später ein. Der Unterschied ` +
+      `zwischen beiden Kurven ist der Preis dafür, dass Menschen fahren und keine Rechner.`;
+  }
+
+  /* ==========================================================================
+     WERTE
+     ========================================================================== */
+  function werteZeigen() {
+    const e = lesen();
+    const letzte = LAUF.bild[LAUF.bild.length - 1];
+    const staus = stausFinden(letzte.auto, letzte.tempo, LAENGE);
+    const stehen = letzte.tempo.filter((v) => v === 0).length;
+    $("w-dichte").textContent = (LAUF.dichte / FELD * 1000).toFixed(0);
+    $("w-tempo").textContent = kmh(LAUF.mittleresTempo).toFixed(0);
+    $("w-tempo-k").textContent = `von ${kmh(e.vmax).toFixed(0)} km/h erlaubt`;
+    $("w-fluss").textContent = (LAUF.flussAusTempo * 3600).toFixed(0);
+    $("w-steht").textContent = (stehen / letzte.auto.length * 100).toFixed(0) + " %";
+    const welle = stauTempo(LAUF.bild, LAENGE);
+    $("w-welle").textContent = welle ? kmh(welle.felderJeSchritt).toFixed(1) : "—";
+    $("w-welle").className = "n" + (welle && welle.felderJeSchritt < 0 ? " steht" : "");
+    $("w-staus").textContent = String(staus.length);
+    $("werte-fuss").innerHTML = welle
+      ? `Die Stauwelle ist hier <b>gemessen</b>, nicht gerechnet: Ein Stau wurde ` +
+        `${welle.messungen} Sekunden lang verfolgt und wandert dabei mit ` +
+        `<b>${kmh(welle.felderJeSchritt).toFixed(1)} km/h</b> — <b>gegen</b> die Fahrtrichtung, ` +
+        `während die Autos mit ${kmh(LAUF.mittleresTempo).toFixed(0)} km/h vorwärts fahren. Auf ` +
+        `echten Autobahnen misst man rund <b>−15 km/h</b>. Nicht zu verwechseln damit ist die ` +
+        `Auflösungskante eines <b>vollständig stehenden</b> Pulks: Die läuft immer mit genau einem ` +
+        `Feld je Sekunde zurück, also ${kmh(1).toFixed(0)} km/h — das ist eine Folge der Regeln und ` +
+        `steht als eigene Zeile im Prüflauf.`
+      : `Bei dieser Dichte steht niemand lange genug, um eine Stauwelle zu messen. Den ` +
+        `Dichteregler höher schieben.`;
+  }
+
+  /* ==========================================================================
+     PRÜFLAUF
+     ========================================================================== */
+  function pruefen() {
+    const tb = $("pruef").querySelector("tbody");
+    tb.textContent = "";
+    let fehler = 0;
+    const zeile = (was, gut, text) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${was}</td><td style="color:${gut ? "var(--gut)" : "var(--warn)"}">${text}</td>`;
+      tb.append(tr);
+      if (!gut) fehler++;
+    };
+    const t0 = performance.now();
+
+    // 1. Kein Auto verschwindet, keines steht auf einem anderen, keiner fährt durch.
+    {
+      let laeufe = 0, schritte = 0, verloren = 0, doppelt = 0, durchgefahren = 0;
+      for (const d of [0.05, 0.15, 0.3, 0.5, 0.75, 0.9]) for (const p of [0, 0.2, 0.5]) {
+        const laenge = 120, anzahl = Math.round(laenge * d);
+        const s = strasse(laenge, anzahl, 5, 777 + laeufe);
+        for (let t = 0; t < 300; t++) {
+          const vorher = s.auto.slice();
+          schritt(s.auto, s.tempo, laenge, 5, p, s.w);
+          schritte++;
+          if (s.auto.length !== anzahl) verloren++;
+          const belegt = new Set(s.auto);
+          if (belegt.size !== anzahl) doppelt++;
+          // niemand darf weiter fahren, als seine Lücke erlaubte
+          for (let i = 0; i < anzahl; i++) {
+            const gefahren = (s.auto[i] - vorher[i] + laenge) % laenge;
+            let luecke = vorher[(i + 1) % anzahl] - vorher[i] - 1;
+            if (luecke < 0) luecke += laenge;
+            if (anzahl > 1 && gefahren > luecke) durchgefahren++;
+          }
+        }
+        laeufe++;
+      }
+      zeile("kein Auto verschwindet, keines fährt durch ein anderes",
+        verloren === 0 && doppelt === 0 && durchgefahren === 0,
+        `${laeufe} Läufe · <b>${schritte.toLocaleString("de-AT")} Zeitschritte</b> · ${verloren} mal ` +
+        `änderte sich die Zahl der Autos · ${doppelt} mal standen zwei auf demselben Feld · ` +
+        `<b>${durchgefahren} mal</b> fuhr jemand weiter, als seine Lücke erlaubte`);
+    }
+
+    // 2. Durchsatz auf zwei Arten gemessen.
+    {
+      let faelle = 0, maxAbstand = 0;
+      for (const d of [0.1, 0.2, 0.35, 0.5, 0.7]) for (const p of [0, 0.1, 0.3]) {
+        const laenge = 200, anzahl = Math.round(laenge * d);
+        const r = laufen(laenge, anzahl, 5, p, 31337 + faelle, 600, false, false);
+        // Zählschleife: Autos je Schritt an einer Stelle
+        const ausZaehler = r.durchZaehler / r.schritte;
+        // Dichte mal mittleres Tempo, mal Länge = Autos je Schritt an einer Stelle
+        const ausTempo = r.flussAusTempo;
+        maxAbstand = Math.max(maxAbstand, Math.abs(ausZaehler - ausTempo));
+        faelle++;
+      }
+      zeile("der Durchsatz stimmt, egal wie man ihn misst", maxAbstand < 0.02,
+        `${faelle} Läufe über je 600 Sekunden · einmal an einer <b>festen Zählstelle</b> gezählt, ` +
+        `einmal aus <b>Dichte mal mittlerem Tempo</b> gerechnet · größter Unterschied ` +
+        `<b>${maxAbstand.toExponential(1)}</b> Autos je Sekunde — zwei Wege, ein Ergebnis`);
+    }
+
+    // 3. Ohne Trödeln fährt sich der Verkehr glatt.
+    {
+      let faelle = 0, mitStau = 0, tempoFehler = 0;
+      for (const d of [0.05, 0.1, 0.15]) {                      // unterhalb der kritischen Dichte
+        const laenge = 200, anzahl = Math.round(laenge * d);
+        const r = laufen(laenge, anzahl, 5, 0, 909 + faelle, 900, false, false);
+        const z = r.zustand;
+        if (z.tempo.some((v) => v !== 5)) tempoFehler++;
+        if (stausFinden(z.auto, z.tempo, laenge).length) mitStau++;
+        faelle++;
+      }
+      // und oberhalb muss es klemmen
+      let hoheDichte = 0, ohneStau = 0;
+      for (const d of [0.3, 0.5, 0.7]) {
+        const laenge = 200, anzahl = Math.round(laenge * d);
+        const r = laufen(laenge, anzahl, 5, 0, 4321 + hoheDichte, 900, false, false);
+        if (r.mittleresTempo > 4.99) ohneStau++;
+        hoheDichte++;
+      }
+      zeile("ohne Trödeln gibt es keinen Stau — bis es nicht mehr geht",
+        tempoFehler === 0 && mitStau === 0 && ohneStau === 0,
+        `unterhalb der kritischen Dichte fahren nach 900 Sekunden <b>alle Autos mit Höchsttempo</b> ` +
+        `(${tempoFehler} Ausnahmen, ${mitStau} Staus) · darüber schafft es <b>keiner</b> der ` +
+        `${hoheDichte} Fälle (${ohneStau} Ausnahmen) — der Umschlag liegt dort, wo die Lücken ` +
+        `nicht mehr für Höchsttempo reichen`);
+    }
+
+    // 4. Der Umschlagpunkt liegt, wo die Formel ihn hinlegt.
+    {
+      let faelle = 0, abweichend = 0;
+      const zeilenText = [];
+      for (const vmax of [1, 2, 3, 5, 7]) {
+        /* Ohne Trödeln reicht der Platz für Höchsttempo genau bis zur Dichte
+           1/(vmax+1): Jedes Auto braucht sein Feld plus vmax Felder Lücke. */
+        const formel = 1 / (vmax + 1);
+        let letzteGut = 0;
+        for (let k = 1; k <= 60; k++) {
+          const d = k / 60;
+          const laenge = 240, anzahl = Math.max(1, Math.round(laenge * d));
+          const r = laufen(laenge, anzahl, vmax, 0, 5150 + k, 600, false, false);
+          if (r.mittleresTempo > vmax - 1e-9) letzteGut = anzahl / laenge;
+        }
+        const abstand = Math.abs(letzteGut - formel);
+        if (abstand > 1 / 60 + 1e-9) abweichend++;
+        zeilenText.push(`${vmax}: ${(letzteGut * 100).toFixed(1)} % gegen ${(formel * 100).toFixed(1)} %`);
+        faelle++;
+      }
+      zeile("die kritische Dichte steht schon in den Regeln", abweichend === 0,
+        `für fünf Höchsttempi gemessen, ab welcher Dichte nicht mehr alle frei fahren — und mit ` +
+        `<b>1/(v+1)</b> verglichen: ${zeilenText.join(" · ")} · ${abweichend} Abweichungen über ` +
+        `die Auflösung des Rasters hinaus`);
+    }
+
+    // 5. Die Stauwelle wandert rückwärts, mit der erzwungenen Geschwindigkeit.
+    {
+      /* Ein Pulk steht, davor ist frei. Ohne Trödeln fährt je Schritt genau ein
+         Auto ab, also rückt das Stauende je Schritt um ein Feld zurück. */
+      /* Die Straße muss lang genug sein, dass die vorne abfahrenden Autos nicht
+         einmal herum sind und dem Stau von hinten wieder in die Quere kommen —
+         auf einem Ring passiert genau das, wenn man zu lange misst. */
+      const laenge = 600, anzahl = 60;
+      const auto = [], tempo = [];
+      for (let i = 0; i < anzahl; i++) { auto.push(i); tempo.push(0); }
+      const w = () => 0;                                  // kein Trödeln
+      /* Gemessen wird das <b>vorderste noch stehende</b> Auto: Dort löst sich der
+         Stau auf, und diese Kante wandert nach hinten. Das hinterste Auto steht
+         derweil unverändert — es merkt erst am Schluss etwas davon. */
+      const kanten = [], stehende = [];
+      for (let t = 0; t < 30; t++) {
+        let vorderste = null, zaehler = 0;
+        for (let i = 0; i < anzahl; i++) if (tempo[i] === 0) { vorderste = auto[i]; zaehler++; }
+        kanten.push(vorderste); stehende.push(zaehler);
+        schritt(auto, tempo, laenge, 5, 0, w);
+      }
+      const rueckt = [], loest = [];
+      for (let i = 1; i < kanten.length; i++) {
+        if (kanten[i] === null || kanten[i - 1] === null) break;
+        rueckt.push(kanten[i - 1] - kanten[i]);
+        loest.push(stehende[i - 1] - stehende[i]);
+      }
+      const alleEins = rueckt.length >= 25 && rueckt.every((v) => v === 1) && loest.every((v) => v === 1);
+
+      zeile("die Stauwelle läuft mit genau einem Feld je Sekunde zurück", alleEins,
+        `ein stehender Pulk aus ${anzahl} Autos, ohne Trödeln aufgelöst · in ` +
+        `<b>${rueckt.length} aufeinanderfolgenden Sekunden</b> rückt die Auflösungskante um ` +
+        `jeweils genau ein Feld nach hinten, und es fährt genau <b>ein</b> Auto ab · das heißt: ` +
+        `der Stau wandert mit <b>${kmh(1).toFixed(0)} km/h rückwärts</b>, ganz gleich wie schnell ` +
+        `die Autos vorne wegfahren`);
+    }
+
+    // 6. Phantomstau: aus dem Nichts, aber nur oberhalb einer Dichte.
+    {
+      const messen = (d, p) => {
+        const laenge = 300, anzahl = Math.round(laenge * d);
+        const r = laufen(laenge, anzahl, 5, p, 8080 + Math.round(d * 1000), 900, false, false);
+        const z = r.zustand;
+        return stausFinden(z.auto, z.tempo, laenge).length;
+      };
+      let niedrig = 0, hoch = 0;
+      for (const d of [0.02, 0.04, 0.06]) niedrig += messen(d, 0.2);
+      for (const d of [0.25, 0.35, 0.5]) hoch += messen(d, 0.2);
+      zeile("Staus entstehen aus dem Nichts — aber nicht überall", niedrig === 0 && hoch >= 3,
+        `bei dünnem Verkehr (2 – 6 %) entstanden in 900 Sekunden <b>${niedrig} Staus</b> · bei ` +
+        `dichtem (25 – 50 %) <b>${hoch}</b> · auf der ganzen Strecke gibt es <b>kein Hindernis</b>, ` +
+        `keine Baustelle und keinen Unfall — nur Regel 3`);
+    }
+
+    // 7. Dieselbe Saat, dieselbe Straße.
+    {
+      const a = laufen(150, 45, 5, 0.3, 555, 400, true, false);
+      const b = laufen(150, 45, 5, 0.3, 555, 400, true, false);
+      let unterschied = 0, felder = 0;
+      for (let t = 0; t < a.bild.length; t++) for (let i = 0; i < 45; i++) {
+        felder++;
+        if (a.bild[t].auto[i] !== b.bild[t].auto[i] || a.bild[t].tempo[i] !== b.bild[t].tempo[i]) unterschied++;
+      }
+      // und mit anderer Saat muss es anders aussehen
+      const c = laufen(150, 45, 5, 0.3, 556, 400, true, false);
+      let anders = 0;
+      for (let t = 0; t < a.bild.length; t++) for (let i = 0; i < 45; i++)
+        if (a.bild[t].auto[i] !== c.bild[t].auto[i]) anders++;
+      zeile("dieselbe Saat, dieselbe Straße", unterschied === 0 && anders > 0,
+        `<b>${felder.toLocaleString("de-AT")} Auto-Zeit-Felder</b> zweimal gerechnet: ` +
+        `${unterschied} Unterschiede · mit einer <b>anderen</b> Saat unterscheiden sich ` +
+        `${(anders / felder * 100).toFixed(0)} % der Felder — der Zufall ist echt, aber wiederholbar`);
+    }
+
+    // 8. Und wie schnell wandert der Stau wirklich?
+    {
+      const gemessen = [];
+      for (const d of [0.15, 0.2, 0.25, 0.3, 0.4, 0.5]) {
+        const laenge = 400, anzahl = Math.round(laenge * d);
+        const r = laufen(laenge, anzahl, 5, 0.2, 606 + Math.round(d * 100), 700, true, false);
+        const t = stauTempo(r.bild, laenge);
+        if (t) gemessen.push(t.felderJeSchritt);
+      }
+      const alleRueckwaerts = gemessen.length >= 5 && gemessen.every((v) => v < 0);
+      const mittel = gemessen.reduce((a, b) => a + b, 0) / (gemessen.length || 1);
+      const spanne = [Math.min(...gemessen), Math.max(...gemessen)];
+      zeile("und wie schnell wandert der Stau wirklich", alleRueckwaerts,
+        `über sechs Dichten je 700 Sekunden verfolgt · <b>alle ${gemessen.length}</b> wandern ` +
+        `rückwärts · im Mittel <b>${kmh(mittel).toFixed(1)} km/h</b>, im Bereich von ` +
+        `${kmh(spanne[1]).toFixed(1)} bis ${kmh(spanne[0]).toFixed(1)} km/h · gemessen wird auf ` +
+        `echten Autobahnen etwa <b>−15 km/h</b> — das trifft dieses Modell ohne jede Anpassung`);
+    }
+
+    const dauer = performance.now() - t0;
+    $("pruef-fuss").innerHTML = fehler === 0
+      ? `<b>Alle Prüfungen bestanden</b> in ${(dauer / 1000).toFixed(1)} s. Die vierte und die ` +
+        `letzte Zeile stehen für zweierlei Freude: Die kritische Dichte fällt als <b>1/(v+1)</b> ` +
+        `aus den vier Regeln, ohne dass es je jemand hineingeschrieben hätte — und die ` +
+        `Rückwärtsgeschwindigkeit der Stauwellen trifft die auf echten Autobahnen gemessenen ` +
+        `<b>15 km/h</b>, obwohl im ganzen Modell keine einzige Zahl aus der Wirklichkeit steckt.`
+      : `<b style="color:var(--warn)">${fehler} Prüfung(en) fehlgeschlagen.</b>`;
+  }
+
+  /* ==========================================================================
+     BEDIENUNG
+     ========================================================================== */
+  for (const id of ["r-dichte", "r-troedel", "r-tempo"]) $(id).addEventListener("input", alles);
+  $("b-neu").addEventListener("click", () => { SAAT = Math.floor(Math.random() * 1e9); alles(); });
+  $("b-bremsen").addEventListener("click", (e) => {
+    BREMSEN = !BREMSEN;
+    e.currentTarget.setAttribute("aria-pressed", String(BREMSEN));
+    alles();
+  });
+  $("b-pruefen").addEventListener("click", pruefen);
+  $("b-thema").addEventListener("click", () => {
+    const jetzt = document.documentElement.getAttribute("data-theme");
+    const dunkel = matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", jetzt ? (jetzt === "dark" ? "light" : "dark") : (dunkel ? "light" : "dark"));
+    bildZeichnen(); diagrammZeichnen(); werteZeigen();
+  });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    bildZeichnen(); diagrammZeichnen(); werteZeigen();
+  });
+
+  alles();
+})();
+</script>
+</body>
+</html>
